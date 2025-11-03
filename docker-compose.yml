@@ -1,0 +1,53 @@
+services:
+  server:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: maltrail-server
+    command: python /opt/maltrail/server.py
+    restart: unless-stopped
+    ports:
+      - "8338:8338/tcp"
+      - "8337:8337/udp"
+    volumes:
+      - ./maltrail.conf:/opt/maltrail/maltrail.conf:ro
+      - ./misc:/opt/maltrail/misc:ro
+      - ./trails:/opt/maltrail/trails:ro
+      - ./logs:/var/log/maltrail
+    environment:
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8338/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  sensor:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: maltrail-sensor
+    command: python /opt/maltrail/sensor.py
+    restart: unless-stopped
+    network_mode: host
+    privileged: true
+    volumes:
+      - ./maltrail.conf:/opt/maltrail/maltrail.conf:ro
+      - ./misc:/opt/maltrail/misc:ro
+      - ./trails:/opt/maltrail/trails:ro
+      - ./logs:/var/log/maltrail
+      - /lib/modules:/lib/modules:ro
+    environment:
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD-SHELL", "ps aux | grep -q '[s]ensor.py' || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+# Notes:
+# - The Docker build context uses files under ./docker (Dockerfile expects the repo root copied there).
+# - The `sensor` service requires host networking and elevated privileges for packet capture (libpcap).
+# - Adjust volume mounts and paths if you keep configuration or logs elsewhere on the host.
